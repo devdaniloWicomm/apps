@@ -22,10 +22,13 @@ interface User {
 async function loader(
   _props: unknown,
   req: Request,
-  ctx: AppContext,
+  ctx: AppContext
 ): Promise<Person | null> {
   const { io } = ctx;
   const { cookie, payload } = parseCookie(req.headers, ctx.account);
+
+  console.log(payload, "payload");
+  console.log(payload?.userId, "payload?.userId");
 
   if (!payload?.sub || !payload?.userId) {
     return null;
@@ -37,8 +40,10 @@ async function loader(
   try {
     const { profile: user } = await io.query<{ profile: User }, null>(
       { query },
-      { headers: { cookie } },
+      { headers: { cookie } }
     );
+
+    console.log(user, "user backend");
 
     return {
       "@id": user.userId ?? user.id,

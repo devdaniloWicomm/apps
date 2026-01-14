@@ -177,7 +177,7 @@ const getTermFallback = (url: URL, isPage: boolean, hasFilters: boolean) => {
 const loader = async (
   props: Props,
   req: Request,
-  ctx: AppContext,
+  ctx: AppContext
 ): Promise<ProductListingPage | null> => {
   const { vcsDeprecated } = ctx;
   const { url: baseUrl } = req;
@@ -203,7 +203,11 @@ const loader = async (
     ? Number(url.searchParams.get("page")) - currentPageoffset
     : 0;
   const page = props.page || pageParam;
-  const O = (url.searchParams.get("O") as LegacySort) ??
+
+  console.log("page", page);
+
+  const O =
+    (url.searchParams.get("O") as LegacySort) ??
     IS_TO_LEGACY[url.searchParams.get("sort") ?? ""] ??
     url.searchParams.get("sort") ??
     props.sort ??
@@ -223,11 +227,15 @@ const loader = async (
   const pageType = pageTypes.at(-1) || pageTypes[0];
 
   const missingParams = typeof maybeMap !== "string" || !maybeTerm;
-  const [map, term] = missingParams && fq.length > 0
-    ? ["", ""]
-    : missingParams
-    ? getMapAndTerm(pageTypes)
-    : [maybeMap, maybeTerm];
+  const [map, term] =
+    missingParams && fq.length > 0
+      ? ["", ""]
+      : missingParams
+      ? getMapAndTerm(pageTypes)
+      : [maybeMap, maybeTerm];
+
+  console.log("map", map);
+  console.log("term", term);
 
   const isPage = pageTypes.length > 0;
 
@@ -235,8 +243,11 @@ const loader = async (
 
   const ftFallback = getTermFallback(url, isPage, hasFilters);
 
-  const ft = props.ft || url.searchParams.get("ft") ||
-    url.searchParams.get("q") || ftFallback;
+  const ft =
+    props.ft ||
+    url.searchParams.get("ft") ||
+    url.searchParams.get("q") ||
+    ftFallback;
 
   const isInSeachFormat = ft;
 
@@ -254,7 +265,7 @@ const loader = async (
         ...args,
         term: getTerm(term, map),
       },
-      { ...STALE, headers: withSegmentCookie(segment) },
+      { ...STALE, headers: withSegmentCookie(segment) }
     ),
     vcsDeprecated["GET /api/catalog_system/pub/facets/search/:term"](
       {
@@ -263,17 +274,20 @@ const loader = async (
         term: getTerm(term, fmap),
         map: fmap,
       },
-      STALE,
+      STALE
     ).then((res) => res.json()),
   ]);
 
   const vtexProducts = (await vtexProductsResponse.json()) as LegacyProduct[];
+
+  console.log("vtexProducts", vtexProducts);
+
   const resources = vtexProductsResponse.headers.get("resources") ?? "";
   const [, _total] = resources.split("/");
 
   if (vtexProducts && !Array.isArray(vtexProducts)) {
     throw new Error(
-      `Error while fetching VTEX data ${JSON.stringify(vtexProducts)}`,
+      `Error while fetching VTEX data ${JSON.stringify(vtexProducts)}`
     );
   }
 
@@ -283,48 +297,43 @@ const loader = async (
   const products = await Promise.all(
     vtexProducts
       .map((p) =>
-        toProduct(
-          p,
-          p.items.find(getFirstItemAvailable) ?? p.items[0],
-          0,
-          {
-            baseUrl,
-            priceCurrency: segment?.payload?.currencyCode ?? "BRL",
-            includeOriginalAttributes: props.advancedConfigs
-              ?.includeOriginalAttributes,
-          },
-        )
+        toProduct(p, p.items.find(getFirstItemAvailable) ?? p.items[0], 0, {
+          baseUrl,
+          priceCurrency: segment?.payload?.currencyCode ?? "BRL",
+          includeOriginalAttributes:
+            props.advancedConfigs?.includeOriginalAttributes,
+        })
       )
-      .map(
-        (
-          product,
-        ) => (props.similars ? withIsSimilarTo(req, ctx, product) : product),
-      ),
+      .map((product) =>
+        props.similars ? withIsSimilarTo(req, ctx, product) : product
+      )
   );
 
   const currentPageTypes = !props.useCollectionName
     ? pageTypes
     : pageTypes.map((pageType) => {
-      if (pageType.id !== pageTypes.at(-1)?.id) return pageType;
+        if (pageType.id !== pageTypes.at(-1)?.id) return pageType;
 
-      const name = products?.[0]?.additionalProperty?.find(
-        (property) =>
-          property.name === "cluster" && property.propertyID === pageType.name,
-      )?.value ?? pageType.name;
+        const name =
+          products?.[0]?.additionalProperty?.find(
+            (property) =>
+              property.name === "cluster" &&
+              property.propertyID === pageType.name
+          )?.value ?? pageType.name;
 
-      return {
-        ...pageType,
-        name,
-      };
-    });
+        return {
+          ...pageType,
+          name,
+        };
+      });
 
   const getFlatCategories = (
-    CategoriesTrees: LegacyFacet[],
+    CategoriesTrees: LegacyFacet[]
   ): Record<string, LegacyFacet[]> => {
     const flatCategories: Record<string, LegacyFacet[]> = {};
 
     CategoriesTrees.forEach(
-      (category) => (flatCategories[category.Name] = category.Children || []),
+      (category) => (flatCategories[category.Name] = category.Children || [])
     );
 
     return flatCategories;
@@ -333,7 +342,7 @@ const loader = async (
   // Get categories of the current department/category
   const getCategoryFacets = (
     CategoriesTrees: LegacyFacet[],
-    isDepartmentOrCategoryPage: boolean,
+    isDepartmentOrCategoryPage: boolean
   ): LegacyFacet[] => {
     if (!isDepartmentOrCategoryPage) {
       return [];
@@ -346,7 +355,7 @@ const loader = async (
       } else if (category.Children.length) {
         const childFacets = getCategoryFacets(
           category.Children,
-          isDepartmentOrCategoryPage,
+          isDepartmentOrCategoryPage
         );
         const hasChildFacets = childFacets.length;
         if (hasChildFacets) {
@@ -358,8 +367,10 @@ const loader = async (
     return [];
   };
 
-  const isDepartmentOrCategoryPage = pageType.pageType === "Department" ||
-    pageType.pageType === "Category" || pageType.pageType === "SubCategory";
+  const isDepartmentOrCategoryPage =
+    pageType.pageType === "Department" ||
+    pageType.pageType === "Category" ||
+    pageType.pageType === "SubCategory";
 
   // at search, collection and brand pages, the products are not of a specific category
   // so we need to get the categories from the facets
@@ -371,7 +382,7 @@ const loader = async (
     Departments: vtexFacets.Departments,
     Categories: getCategoryFacets(
       vtexFacets.CategoriesTrees,
-      isDepartmentOrCategoryPage,
+      isDepartmentOrCategoryPage
     ),
     Brands: vtexFacets.Brands,
     ...vtexFacets.SpecificationFilters,
@@ -387,7 +398,7 @@ const loader = async (
         term,
         filtersBehavior,
         props.ignoreCaseSelected,
-        name === "Categories",
+        name === "Categories"
       )
     )
     .flat()
@@ -434,7 +445,7 @@ const loader = async (
     seo: pageTypesToSeo(
       currentPageTypes,
       baseUrl,
-      hasPreviousPage ? currentPage : undefined,
+      hasPreviousPage ? currentPage : undefined
     ),
   };
 };
@@ -456,19 +467,18 @@ export const cacheKey = (props: Props, req: Request, ctx: AppContext) => {
     ]),
   ].sort();
   const segment = getSegmentFromBag(ctx)?.token ?? "";
-  const sort = (url.searchParams.get("O") as LegacySort) ??
+  const sort =
+    (url.searchParams.get("O") as LegacySort) ??
     IS_TO_LEGACY[url.searchParams.get("sort") ?? ""] ??
     url.searchParams.get("sort") ??
-    props.sort ?? "";
+    props.sort ??
+    "";
   const isSortValid = sortOptions.some((option) => option.value === sort);
   const params = new URLSearchParams([
     ["term", props.term ?? url.pathname ?? ""],
     ["count", (props.count || url.searchParams.get("count") || 12).toString()],
     ["page", (props.page ?? url.searchParams.get("page") ?? 1).toString()],
-    [
-      "sort",
-      isSortValid ? sort : sortOptions[0].value,
-    ],
+    ["sort", isSortValid ? sort : sortOptions[0].value],
     ["filters", props.filters ?? ""],
     ["fq", fq.join(",") ?? ""],
     [
